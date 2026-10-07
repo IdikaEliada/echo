@@ -178,7 +178,7 @@ export default function FindView({ onMemory }: { onMemory: (lines: string[]) => 
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto grid max-w-[1200px] gap-4 p-4 lg:grid-cols-[1.15fr_1fr] lg:gap-6 lg:p-6">
+      <div className="mx-auto grid max-w-300 gap-4 p-4 lg:grid-cols-[1.15fr_1fr] lg:gap-6 lg:p-6">
         {/* Map card */}
         <section className="rounded-[36px] border border-border bg-surface p-3 lg:sticky lg:top-4 lg:self-start">
           <MapView center={center} accuracy={ok ? ok.origin.accuracy ?? (ok.origin.source === "pin" ? fix?.accuracy : undefined) : fix?.accuracy} picks={ok?.picks ?? []} index={ok?.index ?? 0} route={route?.line} />
@@ -232,7 +232,7 @@ export default function FindView({ onMemory }: { onMemory: (lines: string[]) => 
                   setQuery(`${q} near me`);
                   void search(`${q} near me`);
                 }}
-                className="rounded-[12px] border border-border bg-surface px-3 py-1 text-[13px] text-foreground hover:border-border-strong"
+                className="rounded-xl border border-border bg-surface px-3 py-1 text-[13px] text-foreground hover:border-border-strong"
               >
                 {q}
               </button>
@@ -263,12 +263,12 @@ export default function FindView({ onMemory }: { onMemory: (lines: string[]) => 
 
               <article className="rounded-[36px] border border-border bg-surface p-7">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-[12px] bg-ember px-2 py-1 text-[12px] font-medium text-white">
+                  <span className="rounded-xl bg-ember px-2 py-1 text-[12px] font-medium text-white">
                     {ok.index === 0 ? "Top pick" : `Option ${ok.index + 1}`}
                   </span>
-                  <span className="rounded-[12px] border border-border px-2 py-1 text-[12px]">{ok.category.label}</span>
+                  <span className="rounded-xl border border-border px-2 py-1 text-[12px]">{ok.category.label}</span>
                   {pick.source === "echobot" && (
-                    <span className="rounded-[12px] bg-iron px-2 py-1 text-[12px] text-[#fafafa]">Checked in person</span>
+                    <span className="rounded-xl bg-iron px-2 py-1 text-[12px] text-[#fafafa]">Checked in person</span>
                   )}
                 </div>
                 <h2 className="mt-4 text-[32px] font-semibold leading-tight text-ink">{pick.name}</h2>
@@ -357,7 +357,7 @@ export default function FindView({ onMemory }: { onMemory: (lines: string[]) => 
                         <button
                           key={n}
                           onClick={() => rate(n)}
-                          className={`size-10 rounded-[12px] border text-[16px] ${rated && n <= rated ? "border-ink bg-ink text-white" : "border-border bg-surface hover:border-border-strong"}`}
+                          className={`size-10 rounded-xl border text-[16px] ${rated && n <= rated ? "border-ink bg-ink text-white" : "border-border bg-surface hover:border-border-strong"}`}
                           aria-label={`${n} star${n > 1 ? "s" : ""}`}
                         >
                           ★
@@ -490,5 +490,5 @@ function MapView({
     else if (bounds.length === 1) m.setView(bounds[0], 17);
   }, [center, accuracy, picks, index, route]);
 
-  return <div ref={el} className="aspect-[4/5] w-full overflow-hidden rounded-[28px] bg-[#2a2f27] sm:aspect-[4/3]" />;
+  return <div ref={el} className="aspect-4/5 w-full overflow-hidden rounded-[28px] bg-[#2a2f27] sm:aspect-4/3" />;
 }
