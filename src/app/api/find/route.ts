@@ -13,7 +13,8 @@ const Body = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("search"),
     text: z.string().trim().min(1).max(500),
-    location: Point.extend({ accuracy: z.number().min(0).max(100_000).optional() }).nullish(),
+    // Laptops without GPS can report accuracy in the hundreds of km; accept it and let findNearby decide.
+    location: Point.extend({ accuracy: z.number().nonnegative().optional().catch(undefined) }).nullish(),
   }),
   z.object({ action: z.literal("next"), reason: z.string().max(200).optional() }),
   z.object({
