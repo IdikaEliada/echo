@@ -33,7 +33,7 @@ export { CATEGORIES } from "./categories";
 const TZ = () => process.env.FIND_TZ?.trim() || "Africa/Lagos";
 const DEFAULT_RADIUS = 1500;
 const MAX_RADIUS = 6000;
-/** Beyond this, a live fix is too rough to search around if memory has something better. */
+/** Beyond this, a live fix is too rough to search around. */
 const ROUGH_FIX_M = 2000;
 
 export type Origin = LatLng & { label: string; accuracy?: number; source: "pin" | "typed" | "saved" | "last" };
@@ -160,7 +160,7 @@ export async function findNearby(input: FindInput): Promise<FindResult> {
   }
 
   // Where to search from: typed place > live location > last search > saved spot.
-  // A rough live fix (laptop Wi-Fi/IP location) drops below the remembered places.
+  // A rough live fix (laptop Wi-Fi/IP location) is only used via the remembered places.
   let origin: Origin | null = null;
   const live = validLatLng(input.location) ? input.location : null;
   const rough = !!live?.accuracy && live.accuracy > ROUGH_FIX_M;
@@ -183,11 +183,13 @@ export async function findNearby(input: FindInput): Promise<FindResult> {
     origin = { ...memory.spots[0], source: "saved" };
     remembered.push(`Searched around your usual spot, ${memory.spots[0].label}.`);
   }
-  if (!origin && live) {
-    origin = { lat: live.lat, lng: live.lng, accuracy: live.accuracy, label: live.label ?? "your rough location", source: "pin" };
-    notes.push(
-      `Your device only knows where you are to within about ${formatDistance(live.accuracy ?? 0)}, so these may not be close. Add a landmark for better results, e.g. "barber near the main gate".`,
-    );
+  if (!origin && live && rough) {
+    return {
+      ok: false,
+      need: "location",
+      message: `Your location accuracy is low (about ${formatDistance(live.accuracy ?? 0)}), so I can't tell what's near you. Try again in a moment, move somewhere with better signal, or add a landmark, e.g. "barber near the main gate".`,
+      remembered,
+    };
   }
   if (!origin) {
     return {
