@@ -149,7 +149,7 @@ export default function Chat() {
   return (
     <div className="flex h-dvh flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-[5] flex items-center gap-3 bg-surface px-4 py-3">
+      <header className="sticky top-0 z-5 flex items-center gap-3 bg-surface px-4 py-3">
         <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.png" alt="" width={36} height={36} className="size-9" />
@@ -160,7 +160,7 @@ export default function Chat() {
         </div>
         <div className="ml-auto flex items-center gap-2 text-sm">
           {me && (
-            <span className="hidden rounded-[12px] border border-border px-2 py-1 text-[12px] text-foreground sm:inline">
+            <span className="hidden rounded-xl border border-border px-2 py-1 text-[12px] text-foreground sm:inline">
               {me.memories.facts} facts · {me.memories.style} style · {me.memories.places ?? 0} places · {me.memories.personas} persona
             </span>
           )}
@@ -214,7 +214,7 @@ export default function Chat() {
               max={100}
               value={strength}
               onChange={(e) => setStrength(Number(e.target.value))}
-              className="accent-[var(--ink)]"
+              className="accent-ink"
             />
             <span className="w-8 tabular-nums">{strength}%</span>
           </label>
@@ -240,7 +240,7 @@ export default function Chat() {
         )}
         {mode !== "find" && (
           <label className="ml-auto flex items-center gap-2 text-muted">
-            <input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} className="accent-[var(--ink)]" />
+            <input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} className="accent-ink" />
             speak replies
           </label>
         )}
@@ -360,7 +360,7 @@ export default function Chat() {
       </div>
 
       {mobilePanel && (
-        <div className="fixed inset-0 z-[1100] flex justify-end bg-black/40 lg:hidden" onClick={() => setMobilePanel(false)}>
+        <div className="fixed inset-0 z-1100 flex justify-end bg-black/40 lg:hidden" onClick={() => setMobilePanel(false)}>
           <div className="relative h-full w-[85%] max-w-sm bg-surface" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setMobilePanel(false)}
@@ -486,7 +486,7 @@ function Section({ title, items, empty }: { title: string; items?: string[]; emp
       {items?.length ? (
         <ul className="mt-2 space-y-1.5">
           {items.map((t, i) => (
-            <li key={i} className="rounded-[12px] border border-border bg-surface-2 px-2.5 py-1.5 text-[12px] leading-relaxed">
+            <li key={i} className="rounded-xl border border-border bg-surface-2 px-2.5 py-1.5 text-[12px] leading-relaxed">
               {t}
             </li>
           ))}
@@ -500,7 +500,7 @@ function Section({ title, items, empty }: { title: string; items?: string[]; emp
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[1100] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-1100 grid place-items-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-[36px] border border-border bg-surface p-7" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[20px] font-semibold text-ink">{title}</h2>
@@ -568,7 +568,7 @@ function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: (slug:
         type="file"
         accept=".txt,.json,text/plain,application/json"
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-        className="mt-4 block w-full text-sm file:mr-3 file:rounded-[12px] file:border file:border-border file:bg-surface-2 file:px-3 file:py-1.5 file:text-foreground"
+        className="mt-4 block w-full text-sm file:mr-3 file:rounded-xl file:border file:border-border file:bg-surface-2 file:px-3 file:py-1.5 file:text-foreground"
       />
       {senders.length > 0 && (
         <>
