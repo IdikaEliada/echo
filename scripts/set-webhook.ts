@@ -16,10 +16,13 @@ await bot.api.setMyCommands([
   { command: "start", description: "What I can do" },
   { command: "mirror", description: "Talk like me" },
   { command: "assistant", description: "Normal assistant mode" },
+  { command: "find", description: "Find places near you" },
+  { command: "savespot", description: "Save your location by name" },
   { command: "personas", description: "List imported personas" },
   { command: "talkto", description: "Chat with a persona" },
   { command: "memories", description: "What you've stored" },
   { command: "link", description: "Share memory with web + CLI" },
+  { command: "new", description: "Fresh conversation" },
 ]);
 console.log("Webhook set:", url);
 console.log(await bot.api.getWebhookInfo());
