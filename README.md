@@ -14,14 +14,14 @@ Built for Walrus Sessions: *Chatbots That Remember*.
 ## What makes it different
 
 | Mode | What it does |
-|---|---|
+| --- | --- |
 | **Assistant** | Remembers durable facts about you (name, projects, preferences, goals) and recalls them in any new session. |
 | **Mirror me** | Learns *how* you talk: greetings, slang, catchphrases, emoji, casing, message length. It then replies in your voice. Say "yo!" a few times and it starts saying "yo!" back. |
 | **Persona** | Import a WhatsApp or Telegram chat export (with the person's consent) and chat with an AI that texts like them. |
 
 ## How memory works
 
-```
+```txt
 message ─┬─► recall facts  (namespace …-facts)   ┐
          └─► recall style  (…-style or …-p-<id>) ┴─► prompt ─► LLM ─► reply
                                                                   │
@@ -51,11 +51,13 @@ npm run dev                  # http://localhost:3000
 Leave the `MEMWAL_*` variables empty to run on the SDK's in-memory mock. Nothing is then written to Walrus.
 
 ### Getting Walrus Memory credentials
+
 1. Create a **new, dedicated** Sui wallet (for example Slush) for this project.
-2. Open https://memory.walrus.xyz, connect the wallet and create a Walrus Memory account.
+2. Open [Walrus Memory](https://memory.walrus.xyz), connect the wallet and create a Walrus Memory account.
 3. Generate a delegate key. Copy the **account ID** into `MEMWAL_ACCOUNT_ID`. It is the account object ID, not your wallet address and not the public key. Copy the **delegate private key** into `MEMWAL_PRIVATE_KEY`.
 
 ### Telegram
+
 ```bash
 npm run telegram                                    # local, long polling
 npm run telegram:webhook -- https://<your-app>.vercel.app   # production webhook
@@ -70,12 +72,15 @@ The bot only answers in private chats.
 1. Push to GitHub and import the repo in Vercel (framework: Next.js, Node 22.19 or later).
 2. Add every variable from `.env.example` in Vercel → Settings → Environment Variables. Set `MEMWAL_ENV=prod` and a long random `USER_ID_SALT`. Never change the salt afterwards: changing it disconnects existing users from their memories.
 3. Deploy, then point Telegram at the deployment:
+
    ```bash
    npm run telegram:webhook -- https://<your-app>.vercel.app
    ```
+
 4. Check `/api/me` in the browser. It should report `"mock": false`.
 
 ## Limits and safeguards
+
 - The Walrus Memory relayer allows about 60 requests per minute per delegate key. EchoBot keeps each chat turn to 1–3 relayer calls:
   - it caches style profiles for 60 s;
   - it skips fact extraction for messages that can't contain facts ("lol", "ok");
@@ -86,23 +91,27 @@ The bot only answers in private chats.
 - Persona imports require an explicit consent confirmation, and personas always identify as AI when asked.
 
 ### CLI
+
 ```bash
 npm run cli
 ```
 
 ## Demo script
+
 1. **Session 1**: "My name is Alex. I'm building a startup called PayFlow. I'm using TypeScript and Next.js."
 2. Click **New session**, or run `/new` in the CLI, or restart the CLI.
 3. Ask "What is my startup called?" and "What programming language do I prefer?". It answers **PayFlow** and **TypeScript**. The memory panel shows the memories it recalled from Walrus.
 4. **Mirror me**: chat casually with your own slang for a few messages, start a new session, and the assistant talks back in your style.
 
 ## Submission evidence
+
 ```bash
 npm run blobs   # memories (= Walrus blobs) per namespace, users, storage used
 ```
 
 ## Project layout
-```
+
+```txt
 src/lib/brain.ts        respond(): recall → prompt → stream → learn (shared by all channels)
 src/lib/memory.ts       MemWal client, namespaces, isolation
 src/lib/style.ts        style learning + mirror/persona prompts
