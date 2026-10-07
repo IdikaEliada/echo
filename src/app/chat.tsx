@@ -151,7 +151,8 @@ export default function Chat() {
       {/* Header */}
       <header className="sticky top-0 z-[5] flex items-center gap-3 bg-surface px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="grid size-9 place-items-center rounded-[12px] bg-ink text-[15px] font-semibold text-white">E</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="" width={36} height={36} className="size-9" />
           <div>
             <div className="text-[16px] font-semibold leading-tight text-ink">EchoBot</div>
             <div className="text-[12px] text-muted">memory on Walrus {me?.mock ? "· mock mode" : "· mainnet"}</div>
