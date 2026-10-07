@@ -60,7 +60,7 @@ Leave the `MEMWAL_*` variables empty to run on the SDK's in-memory mock. Nothing
 
 ```bash
 npm run telegram                                    # local, long polling
-npm run telegram:webhook -- https://<your-app>.vercel.app   # production webhook
+npm run telegram:webhook -- https://echo-six-hazel.vercel.app/ #https://<your-app>.vercel.app   # production webhook
 ```
 
 Bot commands: `/help`, `/mirror`, `/assistant`, `/new`, `/memories`, `/personas`, `/talkto <name>`, `/link`.

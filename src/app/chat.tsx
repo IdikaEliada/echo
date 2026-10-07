@@ -208,7 +208,7 @@ export default function Chat() {
               max={100}
               value={strength}
               onChange={(e) => setStrength(Number(e.target.value))}
-              className="accent-[var(--accent)]"
+              className="accent--accent)"
             />
             <span className="w-8 tabular-nums">{strength}%</span>
           </label>
