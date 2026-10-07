@@ -1,17 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { speak, stopSpeaking, useVoice } from "./use-voice";
 
-type Mode = "assistant" | "mirror" | "persona";
-type Debug = { facts: string[]; styleTraits: string[]; styleExamples: string[]; mode: Mode };
+// Leaflet touches window on import, so the map view loads in the browser only.
+const FindView = dynamic(() => import("./find"), { ssr: false });
+
+type Mode = "assistant" | "mirror" | "persona" | "find";
+type Debug = { facts: string[]; styleTraits: string[]; styleExamples: string[]; mode: Mode; remembered?: string[] };
 type Msg = { role: "user" | "assistant"; content: string; debug?: Debug; error?: boolean };
 type Me = {
   user: string;
   linked: boolean;
   mock: boolean;
   bot: string | null;
-  memories: { facts: number; style: number; personas: number };
+  memories: { facts: number; style: number; personas: number; places?: number };
 };
 type Persona = { slug: string; name: string; memories: number };
 
@@ -145,18 +149,18 @@ export default function Chat() {
   return (
     <div className="flex h-dvh flex-col">
       {/* Header */}
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg bg-accent font-bold text-accent-ink">E</div>
+      <header className="sticky top-0 z-[5] flex items-center gap-3 bg-surface px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="grid size-9 place-items-center rounded-[12px] bg-ink text-[15px] font-semibold text-white">E</div>
           <div>
-            <div className="font-semibold leading-tight">EchoBot</div>
-            <div className="text-xs text-muted">memory on Walrus {me?.mock ? "· mock mode" : "· mainnet"}</div>
+            <div className="text-[16px] font-semibold leading-tight text-ink">EchoBot</div>
+            <div className="text-[12px] text-muted">memory on Walrus {me?.mock ? "· mock mode" : "· mainnet"}</div>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 text-sm">
           {me && (
-            <span className="hidden rounded-full border border-border px-3 py-1 text-xs text-muted sm:inline">
-              {me.memories.facts} facts · {me.memories.style} style · {me.memories.personas} persona
+            <span className="hidden rounded-[12px] border border-border px-2 py-1 text-[12px] text-foreground sm:inline">
+              {me.memories.facts} facts · {me.memories.style} style · {me.memories.places ?? 0} places · {me.memories.personas} persona
             </span>
           )}
           {me?.bot && (
@@ -164,37 +168,38 @@ export default function Chat() {
               href={`https://t.me/${me.bot}`}
               target="_blank"
               rel="noreferrer"
-              className="hidden rounded-lg border border-border px-3 py-1.5 hover:bg-surface-2 md:inline"
+              className="hidden rounded-full border border-iron bg-surface px-4 py-2 text-[14px] text-iron hover:bg-surface-2 md:inline"
             >
               Chat on Telegram ↗
             </a>
           )}
           <button
             onClick={() => setShowLink(true)}
-            className="rounded-lg border border-border px-3 py-1.5 hover:bg-surface-2"
+            className="whitespace-nowrap rounded-[14px] bg-surface-2 px-3 py-2 text-[14px] text-foreground hover:bg-background sm:px-4"
             title={me?.user}
           >
-            {me?.linked ? "Linked ✓" : "Link Telegram"}
+            {me?.linked ? "Linked ✓" : <>Link<span className="hidden sm:inline"> Telegram</span></>}
           </button>
-          <button onClick={newSession} className="rounded-lg bg-surface-2 px-3 py-1.5 hover:bg-border">
-            New session
+          <button onClick={newSession} className="btn-primary whitespace-nowrap px-3 py-2 text-[14px] sm:px-4">
+            New<span className="hidden sm:inline"> session</span>
           </button>
         </div>
       </header>
 
       {/* Mode bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 border-y border-border bg-surface px-4 py-2 text-[14px]">
         {(
           [
             ["assistant", "Assistant"],
             ["mirror", "Mirror me"],
             ["persona", "Persona"],
+            ["find", "Find nearby"],
           ] as [Mode, string][]
         ).map(([m, label]) => (
           <button
             key={m}
             onClick={() => setMode(m)}
-            className={`rounded-full px-3 py-1 ${mode === m ? "bg-accent text-accent-ink" : "bg-surface-2 text-muted hover:text-foreground"}`}
+            className={`rounded-full px-4 py-1.5 ${mode === m ? "bg-ink text-white" : "bg-surface-2 text-iron hover:text-ink"}`}
           >
             {label}
           </button>
@@ -208,7 +213,7 @@ export default function Chat() {
               max={100}
               value={strength}
               onChange={(e) => setStrength(Number(e.target.value))}
-              className="accent--accent)"
+              className="accent-[var(--ink)]"
             />
             <span className="w-8 tabular-nums">{strength}%</span>
           </label>
@@ -218,7 +223,7 @@ export default function Chat() {
             <select
               value={persona}
               onChange={(e) => setPersona(e.target.value)}
-              className="rounded-lg border border-border bg-surface px-2 py-1"
+              className="rounded-[14px] border border-border bg-surface px-3 py-1.5"
             >
               <option value="">Choose persona…</option>
               {personas.map((p) => (
@@ -227,37 +232,51 @@ export default function Chat() {
                 </option>
               ))}
             </select>
-            <button onClick={() => setShowImport(true)} className="rounded-lg border border-border px-3 py-1 hover:bg-surface-2">
+            <button onClick={() => setShowImport(true)} className="rounded-[14px] border border-border px-3 py-1.5 hover:bg-surface-2">
               Import chat…
             </button>
           </>
         )}
-        <label className="ml-auto flex items-center gap-2 text-muted">
-          <input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} />
-          speak replies
-        </label>
-        <button onClick={() => setMobilePanel(true)} className="text-muted hover:text-foreground lg:hidden">
+        {mode !== "find" && (
+          <label className="ml-auto flex items-center gap-2 text-muted">
+            <input type="checkbox" checked={autoSpeak} onChange={(e) => setAutoSpeak(e.target.checked)} className="accent-[var(--ink)]" />
+            speak replies
+          </label>
+        )}
+        <button onClick={() => setMobilePanel(true)} className={`text-muted hover:text-foreground lg:hidden ${mode === "find" ? "ml-auto" : ""}`}>
           memory
         </button>
-        <button onClick={() => setShowDebug((v) => !v)} className="hidden text-muted hover:text-foreground lg:inline">
+        <button
+          onClick={() => setShowDebug((v) => !v)}
+          className={`hidden text-muted hover:text-foreground lg:inline ${mode === "find" ? "ml-auto" : ""}`}
+        >
           {showDebug ? "hide" : "show"} memory panel
         </button>
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* Messages */}
+        {mode === "find" ? (
+          <main className="flex min-w-0 flex-1 flex-col">
+            <FindView
+              onMemory={(remembered) => {
+                setLastDebug({ facts: [], styleTraits: [], styleExamples: [], mode: "find", remembered });
+                setTimeout(refreshMe, 4000);
+              }}
+            />
+          </main>
+        ) : (
         <main className="flex min-w-0 flex-1 flex-col">
           <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-6">
             {messages.length === 0 && <Empty mode={mode} personaName={activePersona?.name} onPick={(t) => send(t)} />}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`group max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 leading-relaxed ${
+                  className={`group max-w-[85%] whitespace-pre-wrap rounded-[22px] px-4 py-2.5 text-[15px] leading-relaxed ${
                     m.role === "user"
-                      ? "bg-accent text-accent-ink"
+                      ? "bg-ink text-white"
                       : m.error
-                        ? "border border-danger/40 bg-danger/10 text-danger"
-                        : "bg-surface"
+                        ? "border border-danger/30 bg-danger/5 text-danger"
+                        : "border border-border bg-surface"
                   }`}
                 >
                   {m.content || <span className="animate-pulse text-muted">thinking…</span>}
@@ -277,9 +296,9 @@ export default function Chat() {
           </div>
 
           {/* Composer */}
-          <div className="border-t border-border p-3">
+          <div className="border-t border-border bg-surface p-3">
             {voice.error && (
-              <div className="mb-2 flex items-center justify-between rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mb-2 flex items-center justify-between rounded-[14px] bg-danger/5 px-3 py-2 text-sm text-danger">
                 {voice.error}
                 <button onClick={voice.clearError}>✕</button>
               </div>
@@ -299,7 +318,7 @@ export default function Chat() {
                 onClick={listening ? voice.stop : voice.start}
                 disabled={!voice.supported || voice.status === "transcribing" || busy}
                 className={`grid size-11 shrink-0 place-items-center rounded-full text-lg ${
-                  listening ? "recording bg-danger text-white" : "bg-surface-2 hover:bg-border"
+                  listening ? "recording bg-danger text-white" : "border border-border bg-surface-2 hover:border-border-strong"
                 } disabled:opacity-40`}
                 title={voice.supported ? "Voice input" : "Voice not supported in this browser"}
                 aria-label={listening ? "Stop recording" : "Start recording"}
@@ -320,27 +339,28 @@ export default function Chat() {
                 placeholder={
                   mode === "persona" && activePersona ? `Message ${activePersona.name}…` : "Tell me something about you…"
                 }
-                className="max-h-40 min-h-11 flex-1 resize-none rounded-2xl border border-border bg-surface px-4 py-2.5 outline-none focus:border-accent"
+                className="max-h-40 min-h-11 flex-1 resize-none rounded-[14px] border border-border bg-surface px-4 py-2.5 outline-none placeholder:text-faint focus:border-border-strong"
               />
               <button
                 onClick={() => send()}
                 disabled={busy || !input.trim()}
-                className="h-11 shrink-0 rounded-full bg-accent px-5 font-medium text-accent-ink disabled:opacity-40"
+                className="btn-primary h-11 shrink-0 px-5 text-[14px]"
               >
                 Send
               </button>
             </div>
           </div>
         </main>
+        )}
 
         {showDebug && (
-          <MemoryPanel debug={lastDebug} me={me} className="hidden w-80 shrink-0 border-l border-border lg:block" />
+          <MemoryPanel debug={lastDebug} me={me} className="hidden w-80 shrink-0 border-l border-border bg-surface lg:block" />
         )}
       </div>
 
       {mobilePanel && (
-        <div className="fixed inset-0 z-10 flex justify-end bg-black/60 lg:hidden" onClick={() => setMobilePanel(false)}>
-          <div className="relative h-full w-[85%] max-w-sm bg-background" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[1100] flex justify-end bg-black/40 lg:hidden" onClick={() => setMobilePanel(false)}>
+          <div className="relative h-full w-[85%] max-w-sm bg-surface" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setMobilePanel(false)}
               className="absolute top-3 right-3 text-muted hover:text-foreground"
@@ -389,8 +409,8 @@ function Empty({ mode, personaName, onPick }: { mode: Mode; personaName?: string
             "What programming language do I prefer?",
           ];
   return (
-    <div className="mx-auto mt-10 max-w-lg text-center">
-      <h1 className="text-2xl font-semibold">
+    <div className="mx-auto mt-10 max-w-xl text-center">
+      <h1 className="text-[40px] font-semibold leading-[1.15] text-ink">
         {mode === "persona" ? (personaName ? `Chat with ${personaName}` : "Import a persona") : "Hey, I remember you."}
       </h1>
       <p className="mt-2 text-muted">
@@ -405,7 +425,7 @@ function Empty({ mode, personaName, onPick }: { mode: Mode; personaName?: string
           <button
             key={p}
             onClick={() => onPick(p)}
-            className="rounded-xl border border-border bg-surface px-4 py-2.5 text-left text-sm hover:border-accent"
+            className="rounded-[14px] border border-border bg-surface px-4 py-3 text-left text-[14px] hover:border-border-strong"
           >
             {p}
           </button>
@@ -418,28 +438,37 @@ function Empty({ mode, personaName, onPick }: { mode: Mode; personaName?: string
 function MemoryPanel({ debug, me, className }: { debug: Debug | null; me: Me | null; className: string }) {
   return (
     <aside className={`overflow-y-auto p-4 text-sm ${className}`}>
-      <h2 className="font-semibold">Memory panel</h2>
+      <h2 className="text-[20px] font-semibold text-ink">Memory panel</h2>
       <p className="mt-1 text-xs text-muted">Only your own memories are shown here.</p>
 
       {me && (
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div className="mt-4 grid grid-cols-4 gap-2 text-center">
           {(
             [
               ["facts", me.memories.facts],
               ["style", me.memories.style],
+              ["places", me.memories.places ?? 0],
               ["persona", me.memories.personas],
             ] as const
           ).map(([k, v]) => (
-            <div key={k} className="rounded-lg bg-surface p-2">
-              <div className="text-lg font-semibold tabular-nums">{v}</div>
+            <div key={k} className="rounded-[14px] border border-border bg-surface-2 p-2">
+              <div className="text-[20px] font-semibold tabular-nums text-ink">{v}</div>
               <div className="text-xs text-muted">{k}</div>
             </div>
           ))}
         </div>
       )}
 
-      <Section title={`Recalled facts (${debug?.facts.length ?? 0})`} items={debug?.facts} empty="Send a message to see what gets recalled." />
-      {debug && debug.mode !== "assistant" && (
+      {debug?.mode === "find" ? (
+        <Section
+          title={`Used for this search (${debug.remembered?.length ?? 0})`}
+          items={debug.remembered}
+          empty="Nothing from memory changed this search yet. Pass on a place or rate one, and the next search will use it."
+        />
+      ) : (
+        <Section title={`Recalled facts (${debug?.facts.length ?? 0})`} items={debug?.facts} empty="Send a message to see what gets recalled." />
+      )}
+      {debug && debug.mode !== "assistant" && debug.mode !== "find" && (
         <>
           <Section title={`Style traits (${debug.styleTraits.length})`} items={debug.styleTraits} empty="No style learned yet." />
           <Section title={`Voice samples (${debug.styleExamples.length})`} items={debug.styleExamples} empty="No samples yet." />
@@ -456,7 +485,7 @@ function Section({ title, items, empty }: { title: string; items?: string[]; emp
       {items?.length ? (
         <ul className="mt-2 space-y-1.5">
           {items.map((t, i) => (
-            <li key={i} className="rounded-lg bg-surface px-2.5 py-1.5 text-xs leading-relaxed">
+            <li key={i} className="rounded-[12px] border border-border bg-surface-2 px-2.5 py-1.5 text-[12px] leading-relaxed">
               {t}
             </li>
           ))}
@@ -470,10 +499,10 @@ function Section({ title, items, empty }: { title: string; items?: string[]; emp
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-10 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[1100] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-[36px] border border-border bg-surface p-7" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-semibold">{title}</h2>
+          <h2 className="text-[20px] font-semibold text-ink">{title}</h2>
           <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close">
             ✕
           </button>
@@ -538,7 +567,7 @@ function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: (slug:
         type="file"
         accept=".txt,.json,text/plain,application/json"
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-        className="mt-4 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-foreground"
+        className="mt-4 block w-full text-sm file:mr-3 file:rounded-[12px] file:border file:border-border file:bg-surface-2 file:px-3 file:py-1.5 file:text-foreground"
       />
       {senders.length > 0 && (
         <>
@@ -547,7 +576,7 @@ function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: (slug:
             <select
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5"
+              className="mt-1 w-full rounded-[14px] border border-border bg-surface px-3 py-2"
             >
               {senders.map((s) => (
                 <option key={s.name} value={s.name}>
@@ -565,7 +594,7 @@ function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: (slug:
           <button
             onClick={run}
             disabled={!consent || !target || busy}
-            className="mt-4 w-full rounded-lg bg-accent py-2 font-medium text-accent-ink disabled:opacity-40"
+            className="btn-primary mt-4 w-full py-2.5 text-[14px]"
           >
             {busy ? "Building persona… (stores samples on Walrus)" : "Create persona"}
           </button>
@@ -601,10 +630,10 @@ function LinkDialog({ me, onClose, onDone }: { me: Me | null; onClose: () => voi
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="WB-…"
-        className="mt-4 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
+        className="mt-4 w-full rounded-[14px] border border-border bg-surface px-3 py-2 font-mono text-sm outline-none focus:border-border-strong"
       />
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-      <button onClick={link} disabled={!code.trim()} className="mt-4 w-full rounded-lg bg-accent py-2 font-medium text-accent-ink disabled:opacity-40">
+      <button onClick={link} disabled={!code.trim()} className="btn-primary mt-4 w-full py-2.5 text-[14px]">
         Link
       </button>
     </Dialog>

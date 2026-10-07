@@ -6,9 +6,21 @@
 // chosen mode and imported personas all live in Walrus Memory. Only the
 // short-term chat history is kept in process memory.
 
-import { Bot, InlineKeyboard, type Context } from "grammy";
+import { Bot, InlineKeyboard, Keyboard, type Context } from "grammy";
 import { respond, personaName, type ChatTurn, type Mode } from "./brain";
 import { env } from "./env";
+import {
+  currentPick,
+  directions,
+  findNearby,
+  formatResult,
+  looksLikeFind,
+  nextPick,
+  saveSpot,
+  saveVisit,
+  type FindResult,
+} from "./find";
+import { formatDistance, type LatLng } from "./find/geo";
 import { httpFetch } from "./http";
 import { makeLinkCode } from "./identity";
 import { ns, recall, remember, userKey, userNamespaces } from "./memory";
@@ -16,7 +28,8 @@ import { importPersona, listPersonas, parseChat, senders } from "./persona";
 import { rateLimit } from "./rate-limit";
 import { transcribe } from "./voice/stt";
 
-type Session = { mode: Mode; persona?: string; history: ChatTurn[] };
+type TgMode = Mode | "find";
+type Session = { mode: TgMode; persona?: string; history: ChatTurn[]; location?: LatLng & { accuracy?: number }; pendingFind?: string };
 type Schedule = (task: () => Promise<unknown>) => void;
 
 const g = globalThis as unknown as { __ebTgSessions?: Map<number, Session> };
@@ -31,16 +44,16 @@ async function session(ctx: Context): Promise<Session> {
   if (s) return s;
   s = { mode: "assistant", history: [] };
   const [saved] = await recall(ns.settings(user(ctx)), "telegram mode setting", 1, { sort: "recent" });
-  const m = saved?.text.match(/^\[settings\] mode=(assistant|mirror|persona)(?: persona=(\S+))?/);
+  const m = saved?.text.match(/^\[settings\] mode=(assistant|mirror|persona|find)(?: persona=(\S+))?/);
   if (m) {
-    s.mode = m[1] as Mode;
+    s.mode = m[1] as TgMode;
     s.persona = m[2];
   }
   sessions.set(id, s);
   return s;
 }
 
-async function setMode(ctx: Context, mode: Mode, persona?: string) {
+async function setMode(ctx: Context, mode: TgMode, persona?: string) {
   const s = await session(ctx);
   s.mode = mode;
   s.persona = persona;
@@ -57,6 +70,12 @@ const HELP = [
   "/mirror: I learn how you text and start sounding like you",
   "/personas: personas you've imported",
   "/talkto <name>: chat with a persona",
+  "/find: find places near you (barber, food, printing, laundry…)",
+  "",
+  "Find nearby",
+  "Share your location (📎 → Location) or name a landmark: \"printing near the main gate\".",
+  "I remember your spots, the places you passed on and how your visits went.",
+  "/savespot <name>: save your last shared location, e.g. /savespot Hostel B",
   "",
   "Persona import: send me a WhatsApp export (.txt) or Telegram export (result.json) and pick who to learn from.",
   "",
@@ -127,6 +146,91 @@ export function createBot(schedule: Schedule) {
     if (!list.some((p) => p.slug === slug)) return ctx.reply("That persona no longer exists.");
     await setMode(ctx, "persona", slug);
     await ctx.reply(`Now chatting with ${personaName(slug)} (AI persona). Say hi! /stop to exit.`);
+  });
+
+  // ---- Find nearby ----
+
+  bot.command("find", async (ctx) => {
+    const q = ctx.match.trim();
+    if (q) return findAndReply(ctx, q);
+    await setMode(ctx, "find");
+    await ctx.reply(
+      "Find mode on 📍 Tell me what you need (\"cheap barber open now\", \"printing near the main gate\"). Share your location with the button below, or name a landmark. /assistant to exit.",
+      { reply_markup: locationKeyboard() },
+    );
+  });
+
+  bot.command("savespot", async (ctx) => {
+    const label = ctx.match.trim().slice(0, 60);
+    const s = await session(ctx);
+    if (!label) return ctx.reply("Give it a name, e.g. /savespot Hostel B");
+    if (!s.location) return ctx.reply("Share your location first (📎 → Location), then send /savespot again.", { reply_markup: locationKeyboard() });
+    await saveSpot(user(ctx), { label, ...s.location });
+    await ctx.reply(`Saved "${label}" to your memory on Walrus. Say "barber near ${label}" any time, on any channel.`);
+  });
+
+  bot.on("message:location", async (ctx) => {
+    const s = await session(ctx);
+    const { latitude, longitude, horizontal_accuracy } = ctx.message.location;
+    s.location = { lat: latitude, lng: longitude, accuracy: horizontal_accuracy };
+    const pending = s.pendingFind;
+    s.pendingFind = undefined;
+    if (pending) return findAndReply(ctx, pending);
+    await ctx.reply(
+      `Got your location${horizontal_accuracy ? ` (accurate to about ${Math.round(horizontal_accuracy)} m)` : ""}. What are you looking for? Tip: /savespot <name> remembers this place.`,
+      { reply_markup: { remove_keyboard: true } },
+    );
+  });
+
+  bot.callbackQuery("f:next", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.reply("Why not this one? I'll remember it.", {
+      reply_markup: new InlineKeyboard()
+        .text("Too far", "f:nx:too far")
+        .text("Closed", "f:nx:was closed")
+        .row()
+        .text("Too pricey", "f:nx:too pricey")
+        .text("Just show the next", "f:nx:"),
+    });
+  });
+
+  bot.callbackQuery(/^f:nx:(.*)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.deleteMessage().catch(() => {});
+    await sendFind(ctx, await nextPick(user(ctx), ctx.match[1] || undefined));
+  });
+
+  bot.callbackQuery("f:dir", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const cur = currentPick(user(ctx));
+    if (!cur) return ctx.reply("I lost track of that search. Ask me again and I'll pick it up.");
+    await ctx.replyWithChatAction("typing");
+    const d = await directions(cur.origin, cur.pick);
+    await ctx.reply(
+      [`Walking to ${cur.pick.name}: ${formatDistance(d.distance)}, about ${d.minutes} min`, "", ...d.steps.map((x, i) => `${i + 1}. ${x}`)].join("\n"),
+      {
+        reply_markup: new InlineKeyboard().url("Open in Google Maps", d.mapsUrl).row().text("I went there: rate it", "f:rate"),
+      },
+    );
+  });
+
+  bot.callbackQuery("f:rate", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const cur = currentPick(user(ctx));
+    if (!cur) return ctx.reply("I lost track of that place. Ask me again and I'll pick it up.");
+    const kb = new InlineKeyboard();
+    [1, 2, 3, 4, 5].forEach((n) => kb.text("★".repeat(n), `f:r:${n}`));
+    await ctx.reply(`How was ${cur.pick.name}? Your rating helps the next person.`, { reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^f:r:([1-5])$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const cur = currentPick(user(ctx));
+    if (!cur) return ctx.reply("I lost track of that place. Ask me again and I'll pick it up.");
+    await saveVisit(user(ctx), cur.pick, Number(ctx.match[1]));
+    await ctx.editMessageText(
+      `Thanks! Saved ${ctx.match[1]}★ for ${cur.pick.name} on Walrus. I'll use it next time you search, and it counts towards its EchoBot rating.`,
+    );
   });
 
   bot.command("link", (ctx) =>
@@ -220,6 +324,10 @@ export function createBot(schedule: Schedule) {
 
   bot.on("message:text", async (ctx) => {
     if (ctx.message.text.startsWith("/")) return ctx.reply("Unknown command. Try /help.");
+    const s = await session(ctx);
+    if (s.mode === "find" || (s.mode === "assistant" && looksLikeFind(ctx.message.text))) {
+      return findAndReply(ctx, ctx.message.text);
+    }
     await answer(ctx, ctx.message.text, schedule);
   });
 
@@ -240,10 +348,12 @@ export function createBot(schedule: Schedule) {
       return ctx.reply("Sorry, I couldn't make out that voice message. Try again or type it.");
     }
     await ctx.reply(`🎙 “${text}”`);
+    const s = await session(ctx);
+    if (s.mode === "find" || (s.mode === "assistant" && looksLikeFind(text))) return findAndReply(ctx, text);
     await answer(ctx, text, schedule);
   });
 
-  bot.on("message", (ctx) => ctx.reply("I can read text, voice notes and chat-export files. Try /help."));
+  bot.on("message", (ctx) => ctx.reply("I can read text, voice notes, locations and chat-export files. Try /help."));
 
   bot.catch((err) => console.error("[telegram] error:", err.error));
   return bot;
@@ -284,6 +394,40 @@ function chunks(text: string, size = 4000): string[] {
   return out;
 }
 
+function locationKeyboard() {
+  return new Keyboard().requestLocation("📍 Share my location").resized().oneTime();
+}
+
+async function findAndReply(ctx: Context, text: string) {
+  const wait = rateLimit(user(ctx), "chat");
+  if (wait) {
+    await ctx.reply(`You're sending messages fast! Give me ${wait}s.`);
+    return;
+  }
+  const s = await session(ctx);
+  await ctx.replyWithChatAction("find_location");
+  try {
+    const result = await findNearby({ user: user(ctx), text: text.slice(0, 500), location: s.location });
+    if (!result.ok && result.need === "location") s.pendingFind = text;
+    await sendFind(ctx, result);
+  } catch (err) {
+    console.error("[telegram] find failed:", err);
+    await ctx.reply("Something went wrong while searching. Try again in a moment.");
+  }
+}
+
+async function sendFind(ctx: Context, result: FindResult) {
+  if (!result.ok) {
+    await ctx.reply(formatResult(result), result.need === "location" ? { reply_markup: locationKeyboard() } : {});
+    return;
+  }
+  const p = result.picks[result.index];
+  // A venue message is a tappable map pin in every Telegram client.
+  await ctx.replyWithVenue(p.lat, p.lng, p.name, p.address ?? p.landmark ?? `${formatDistance(p.distance)} ${p.direction} of ${result.origin.label}`);
+  const kb = new InlineKeyboard().text("Not this one", "f:next").text("Directions", "f:dir").row().url("Open in Google Maps", p.mapsUrl);
+  await ctx.reply(formatResult(result), { reply_markup: kb });
+}
+
 async function answer(ctx: Context, text: string, schedule: Schedule) {
   const wait = rateLimit(user(ctx), "chat");
   if (wait) {
@@ -297,7 +441,7 @@ async function answer(ctx: Context, text: string, schedule: Schedule) {
       user: user(ctx),
       message: text.slice(0, 4000),
       history: s.history,
-      mode: s.mode,
+      mode: s.mode === "find" ? "assistant" : s.mode,
       persona: s.persona,
       channel: "telegram",
     });

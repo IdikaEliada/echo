@@ -1,0 +1,5 @@
+{
+  "_readme": "EchoBot's own verified places and landmarks. Add only places you have checked in person. See docs/find-nearby.md for the fields.",
+  "places": [],
+  "landmarks": []
+}

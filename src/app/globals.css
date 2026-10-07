@@ -1,15 +1,23 @@
 @import "tailwindcss";
 
+/* EchoBot design tokens: a quiet zinc scale, near-black actions, and one
+   orange accent (Ember) kept for badges only. Hairline borders, no shadows. */
 :root {
-  --background: #0b0d10;
-  --surface: #13171c;
-  --surface-2: #1a2027;
-  --border: #252c35;
-  --foreground: #e8edf2;
-  --muted: #8b96a3;
-  --accent: #4fd1c5;
-  --accent-ink: #062622;
-  --danger: #f87171;
+  --background: #f4f4f5; /* Paper: canvas */
+  --surface: #ffffff; /* Snow: cards, inputs */
+  --surface-2: #fafafa; /* subtle recessed surfaces */
+  --border: #ececee; /* Cloud: 1px hairlines */
+  --border-strong: #d4d4d8; /* Mist */
+  --foreground: #18181b; /* Graphite: body text */
+  --ink: #09090b; /* Obsidian: headlines, primary buttons */
+  --slate: #27272a;
+  --iron: #3f3f46;
+  --muted: #71717a; /* Fog: helper text */
+  --faint: #a1a1aa; /* Ash: placeholders */
+  --accent: #09090b; /* primary action = Obsidian */
+  --accent-ink: #ffffff;
+  --ember: #ff5a00; /* badges only */
+  --danger: #b42318;
 }
 
 @theme inline {
@@ -17,23 +25,67 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-slate: var(--slate);
+  --color-iron: var(--iron);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
+  --color-ember: var(--ember);
   --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
+/* Primary dark button: depth from an inset highlight, not a drop shadow. */
+.btn-primary {
+  background: var(--ink);
+  color: #fff;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.5),
+    inset 0 9px 14px -5px rgba(117, 123, 133, 0.4),
+    0 0 0 1.5px rgb(44, 46, 52),
+    0 4px 6px 0 rgba(0, 0, 0, 0.14);
+}
+.btn-primary:disabled { opacity: 0.4; }
+
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgb(248 113 113 / 0.5); }
-  100% { box-shadow: 0 0 0 12px rgb(248 113 113 / 0); }
+  0% { box-shadow: 0 0 0 0 rgb(180 35 24 / 0.45); }
+  100% { box-shadow: 0 0 0 12px rgb(180 35 24 / 0); }
 }
 .recording { animation: pulse-ring 1.2s ease-out infinite; }
+
+/* Map chips, like postcode labels on a satellite view. */
+.eb-chip {
+  background: #fff;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 10000px;
+  padding: 3px 10px;
+  font: 500 12px/1.4 var(--font-dm-sans), system-ui, sans-serif;
+  white-space: nowrap;
+  transform: translate(-50%, -130%);
+  display: inline-block;
+}
+.eb-chip.top { background: var(--ink); color: #fff; border-color: var(--ink); }
+.eb-chip-wrap { background: none !important; border: none !important; }
+.eb-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1a8cff;
+  border: 2.5px solid #fff;
+}
+.leaflet-container { font-family: var(--font-dm-sans), system-ui, sans-serif; }

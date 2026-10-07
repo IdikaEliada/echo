@@ -11,9 +11,21 @@ import { usingMockMemory } from "../src/lib/env";
 import { redeemLinkCode } from "../src/lib/identity";
 import { userKey, userNamespaces } from "../src/lib/memory";
 import { listPersonas } from "../src/lib/persona";
+import {
+  currentPick,
+  directions,
+  findNearby,
+  formatResult,
+  looksLikeFind,
+  nextPick,
+  saveSpot,
+  saveVisit,
+} from "../src/lib/find";
+import { resolvePlace } from "../src/lib/find/geocode";
+import { formatDistance, type LatLng } from "../src/lib/find/geo";
 
 const STATE_FILE = ".walbuddy-cli.json";
-type State = { user: string };
+type State = { user: string; location?: LatLng & { label: string } };
 
 function loadState(): State {
   if (existsSync(STATE_FILE)) return JSON.parse(readFileSync(STATE_FILE, "utf8"));
@@ -26,6 +38,13 @@ const HELP = `Commands:
   /new              start a fresh session (memory stays on Walrus)
   /mode assistant   normal assistant
   /mode mirror      talk like me
+  /mode find        every message searches for places nearby
+  /find <what>      e.g. /find cheap barber open now
+  /near <place>     set where you are, e.g. /near main gate
+  /next [why]       not this one (I remember why)
+  /directions       walking directions to the current pick
+  /rate <1-5> [tags]  rate the place you visited, e.g. /rate 5 fast,clean
+  /savespot <name>  save where you are as a named spot
   /personas         list imported personas
   /talkto <slug>    chat with a persona
   /link <code>      use your Telegram memory (send /link to the bot)
@@ -34,7 +53,7 @@ const HELP = `Commands:
 
 async function main() {
   const state = loadState();
-  let mode: Mode = "assistant";
+  let mode: Mode | "find" = "assistant";
   let persona: string | undefined;
   let history: ChatTurn[] = [];
   const pending: Promise<unknown>[] = [];
@@ -55,7 +74,44 @@ async function main() {
       else if (cmd === "/new") {
         history = [];
         console.log("New session. Short-term history cleared; long-term memory is still on Walrus.");
-      } else if (cmd === "/mode" && (arg === "assistant" || arg === "mirror")) {
+      } else if (cmd === "/find" && arg) {
+        await runFind(state.user, arg, state.location);
+      } else if (cmd === "/near" && arg) {
+        const at = await resolvePlace(arg, { near: state.location });
+        if (!at) console.log(`Couldn't find "${arg}" on the map. Try a bigger landmark.`);
+        else {
+          state.location = { lat: at.lat, lng: at.lng, label: at.label };
+          writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+          console.log(`Okay, you're near ${at.label}.`);
+        }
+      } else if (cmd === "/next") {
+        console.log(formatResult(await nextPick(state.user, arg || undefined)) + "\n");
+      } else if (cmd === "/directions") {
+        const cur = currentPick(state.user);
+        if (!cur) console.log("Search for something first.");
+        else {
+          const d = await directions(cur.origin, cur.pick);
+          console.log(`Walking to ${cur.pick.name}: ${formatDistance(d.distance)}, about ${d.minutes} min`);
+          d.steps.forEach((x, i) => console.log(`  ${i + 1}. ${x}`));
+          console.log(`  Map: ${d.mapsUrl}\n`);
+        }
+      } else if (cmd === "/rate") {
+        const cur = currentPick(state.user);
+        const stars = Number(rest[0]);
+        if (!cur) console.log("Search for something first.");
+        else if (!(stars >= 1 && stars <= 5)) console.log("Usage: /rate <1-5> [tags]");
+        else {
+          pending.push(saveVisit(state.user, cur.pick, stars, (rest[1] ?? "").split(",")).catch(() => {}));
+          console.log(`Saved ${stars}★ for ${cur.pick.name} on Walrus.`);
+        }
+      } else if (cmd === "/savespot") {
+        if (!arg) console.log("Usage: /savespot <name>");
+        else if (!state.location) console.log("Set where you are first with /near <place>.");
+        else {
+          pending.push(saveSpot(state.user, { ...state.location, label: arg }).catch(() => {}));
+          console.log(`Saved "${arg}" to your memory on Walrus.`);
+        }
+      } else if (cmd === "/mode" && (arg === "assistant" || arg === "mirror" || arg === "find")) {
         mode = arg;
         persona = undefined;
         console.log(`Mode: ${mode}`);
@@ -85,6 +141,11 @@ async function main() {
         const spaces = await userNamespaces(state.user);
         console.log(spaces.length ? spaces.map((n) => `  ${n.name.split("-").pop()}: ${n.memory_count}`).join("\n") : "Nothing stored yet.");
       } else console.log(HELP);
+      continue;
+    }
+
+    if (mode === "find" || (mode === "assistant" && looksLikeFind(line))) {
+      await runFind(state.user, line, state.location);
       continue;
     }
 
@@ -120,6 +181,17 @@ async function main() {
     console.log("done.");
   }
   process.exit(0);
+}
+
+async function runFind(user: string, text: string, location?: LatLng) {
+  try {
+    const r = await findNearby({ user, text, location });
+    console.log(formatResult(r));
+    if (r.ok) console.log(`  Map: ${r.picks[r.index].mapsUrl}\n  /next, /directions or /rate when you've been.\n`);
+    else console.log();
+  } catch (err) {
+    console.error(`error: ${err instanceof Error ? err.message : err}\n`);
+  }
 }
 
 main();

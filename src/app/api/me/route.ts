@@ -32,6 +32,7 @@ export async function GET() {
       facts: count((n) => n.endsWith("-facts")),
       style: count((n) => n.endsWith("-style")),
       personas: count((n) => n.includes("-p-")),
+      places: count((n) => n.endsWith("-finder")),
     },
   });
 }

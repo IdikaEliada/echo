@@ -1,12 +1,12 @@
 # EchoBot
 
-> The AI that remembers you — then starts sounding like you.
+> The AI that remembers you, sounds like you, and finds what you need nearby.
 
 An AI assistant that **remembers you across sessions and channels**, and **learns to talk like you**. Its memory is stored on [Walrus Memory](https://memory.walrus.xyz).
 
 Built for Walrus Sessions: *Chatbots That Remember*.
 
-- **Web app**: chat, voice input with a live transcript, spoken replies, and a memory debug panel.
+- **Web app**: chat, voice input with a live transcript, spoken replies, a memory debug panel, and a Find nearby map.
 - **Telegram bot**: text and voice notes.
 - **CLI**: `npm run cli`.
 - **Shared memory**: all three channels use one brain (`src/lib/brain.ts`), so memory works the same everywhere. Send `/link` to the bot to share one memory across web, Telegram and CLI.
@@ -18,6 +18,7 @@ Built for Walrus Sessions: *Chatbots That Remember*.
 | **Assistant** | Remembers durable facts about you (name, projects, preferences, goals) and recalls them in any new session. |
 | **Mirror me** | Learns *how* you talk: greetings, slang, catchphrases, emoji, casing, message length. It then replies in your voice. Say "yo!" a few times and it starts saying "yo!" back. |
 | **Persona** | Import a WhatsApp or Telegram chat export (with the person's consent) and chat with an AI that texts like them. |
+| **Find nearby** | "Cheap barber open now", "printing near the main gate": one top pick plus alternatives, with hours, phone, a map pin and landmark-based walking directions. It remembers your saved spots, the places you passed on and why, and how your visits went, so every search gets better. See [docs/find-nearby.md](docs/find-nearby.md). |
 
 ## How memory works
 
@@ -63,7 +64,8 @@ npm run telegram                                    # local, long polling
 npm run telegram:webhook -- https://echo-six-hazel.vercel.app/ #https://<your-app>.vercel.app   # production webhook
 ```
 
-Bot commands: `/help`, `/mirror`, `/assistant`, `/new`, `/memories`, `/personas`, `/talkto <name>`, `/link`.
+Bot commands: `/help`, `/mirror`, `/assistant`, `/find`, `/savespot <name>`, `/new`, `/memories`, `/personas`, `/talkto <name>`, `/link`.
+Share a location pin (📎 → Location) or name a landmark to search near it. In assistant mode, a message like "where's the nearest pharmacy?" also runs a search.
 To build a persona on Telegram, send the bot a WhatsApp export (`.txt`) or a Telegram export (`result.json`), pick the person, and confirm they consented.
 The bot only answers in private chats.
 
@@ -119,6 +121,8 @@ src/lib/persona.ts      WhatsApp / Telegram export parsing, persona import
 src/lib/telegram.ts     grammY bot (text + voice)
 src/lib/voice/stt.ts    speech-to-text provider
 src/lib/identity.ts     signed cookies + Telegram link codes
+src/lib/find/           find nearby: search, ranking, place memory, directions
+src/data/places.json    EchoBot's own verified places and landmarks
 src/app/                web UI + API routes
 scripts/                cli, telegram, smoke test, blob count
 ```

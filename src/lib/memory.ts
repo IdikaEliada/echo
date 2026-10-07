@@ -35,7 +35,7 @@ export function userKey(channel: "web" | "tg" | "cli", id: string | number): str
   return `${channel}:${id}`;
 }
 
-function hash(value: string): string {
+export function hash(value: string): string {
   return createHash("sha256").update(env.userIdSalt).update(value).digest("hex").slice(0, 20);
 }
 
@@ -46,6 +46,10 @@ export const ns = {
   facts: (user: string) => `${prefix()}-u-${hash(user)}-facts`,
   /** How the user talks: style traits + example messages. */
   style: (user: string) => `${prefix()}-u-${hash(user)}-style`,
+  /** Find-nearby memory: saved spots, places passed on, visits and ratings. */
+  finder: (user: string) => `${prefix()}-u-${hash(user)}-finder`,
+  /** Visit ratings from every user, keyed by place. No user ids, only a salted hash. */
+  community: () => `${prefix()}-community-ratings`,
   /** Small per-user settings (e.g. Telegram mode) so they survive restarts. */
   settings: (user: string) => `${prefix()}-u-${hash(user)}-settings`,
   /** Imported persona, owned by one user. */
